@@ -40,9 +40,7 @@ type IssueList struct {
 }
 
 func main() {
-	if len(os.Args) < 3 {
-		log.Fatal("Wrong number of arguments. Usage: ./version_checker <project> <version>")
-	}
+	project, version := obtainCLIArgs()
 
 	// Obtain credentials
 	contentBytes, err := os.ReadFile("credentials.json")
@@ -55,8 +53,6 @@ func main() {
 	}
 
 	// Create and make the request
-	project := os.Args[1]
-	version := os.Args[2]
 	request := CreateHttpRequest(credentials, project, version)
 	var client *http.Client = &http.Client{}
 	resp, err := client.Do(request)
@@ -115,4 +111,15 @@ func PrintIssueList(issueList IssueList) {
 
 func FormatJiraURL(issueKey string) string {
 	return fmt.Sprintf("https://jira.despegar.com/browse/%s", issueKey)
+}
+
+func obtainCLIArgs() (string, string) {
+	if len(os.Args) < 3 {
+		log.Fatal("Wrong number of arguments. Usage: ./version_checker <project> <version>")
+	}
+
+	project := os.Args[1]
+	version := os.Args[2]
+
+	return project, version
 }
