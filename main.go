@@ -61,6 +61,10 @@ func main() {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		log.Fatalf("Oops something went wrong with the request. Status: %v", resp.Status)
+	}
+
 	// Read and parse the response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
