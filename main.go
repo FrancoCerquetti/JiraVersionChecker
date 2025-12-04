@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/fatih/color"
 )
 
 type Credentials struct {
@@ -28,6 +30,7 @@ type IssueFields struct {
 	Reporter IssueUser   `json:"reporter"`
 	Assignee IssueUser   `json:"assignee"`
 	Status   IssueStatus `json:"status"`
+	Evidence string      `json:"customfield_17840"`
 }
 
 type Issue struct {
@@ -53,7 +56,7 @@ func main() {
 	}
 
 	// Create and make the request
-	request := CreateHttpRequest(credentials, project, version)
+	request := createHttpRequest(credentials, project, version)
 	var client *http.Client = &http.Client{}
 	resp, err := client.Do(request)
 	if err != nil {
@@ -76,17 +79,17 @@ func main() {
 		log.Fatalf("Error parsing response body: %v", err)
 	}
 
-	PrintIssueList(issueList)
+	printIssueList(issueList)
 }
 
-func CreateHttpRequest(credentials Credentials, projectArg string, versionArg string) *http.Request {
+func createHttpRequest(credentials Credentials, projectArg string, versionArg string) *http.Request {
 	credentialsConcat := fmt.Sprintf("%s:%s", credentials.User, credentials.Password)
 	credentialsEncoded := b64.StdEncoding.EncodeToString([]byte(credentialsConcat))
 	auth := fmt.Sprintf("Basic %s", credentialsEncoded)
 
 	project := fmt.Sprintf("project=%s", projectArg)
 	fixVersion := fmt.Sprintf("fixVersion=%s", versionArg)
-	url := "https://jira.despegar.com/rest/api/2/search/?jql=" + project + "%20AND%20" + fixVersion + "&fields=summary,status,fixVersions,reporter,assignee"
+	url := "https://jira.despegar.com/rest/api/2/search/?jql=" + project + "%20AND%20" + fixVersion + "&fields=summary,status,fixVersions,reporter,assignee,customfield_17840"
 
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -98,22 +101,31 @@ func CreateHttpRequest(credentials Credentials, projectArg string, versionArg st
 	return request
 }
 
-func PrintIssueList(issueList IssueList) {
+func printIssueList(issueList IssueList) {
 	if len(issueList.Issues) == 0 {
 		fmt.Println("No issues found!")
 		return
 	}
 
 	for _, issue := range issueList.Issues {
-		fmt.Printf("- [%s] %s\n", issue.Key, issue.Summary)
-		fmt.Printf("\t- %s\n", FormatJiraURL(issue.Key))
+		var jiraKey = color.YellowString(issue.Key)
+		fmt.Printf("- [%s] %s\n", jiraKey, issue.Summary)
+		fmt.Printf("\t- %s\n", formatJiraURL(issue.Key))
 		fmt.Printf("\t- Informador: %s\n", issue.Reporter.Name)
 		fmt.Printf("\t- Responsable: %s\n", issue.Assignee.Name)
 		fmt.Printf("\t- Status: %s\n", issue.Status.Description)
+		fmt.Printf("\t- Evidencia: %v\n", issueEvidenceToSimpleString(issue.Evidence))
 	}
 }
 
-func FormatJiraURL(issueKey string) string {
+func issueEvidenceToSimpleString(evidence string) string {
+	if evidence != "" {
+		return color.GreenString("Completa")
+	}
+	return color.RedString("Incompleta")
+}
+
+func formatJiraURL(issueKey string) string {
 	return fmt.Sprintf("https://jira.despegar.com/browse/%s", issueKey)
 }
 
