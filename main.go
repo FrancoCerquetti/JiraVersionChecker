@@ -94,9 +94,9 @@ func (issueList IssueList) printIssuesWithoutEvidence() {
 	}
 
 	if len(issuesWithoutEvidence) > 0 {
-		fmt.Println("\nJiras sin evidencia: ")
+		fmt.Println("\n- Jiras sin evidencia: ")
 		for _, issue := range issuesWithoutEvidence {
-			fmt.Printf("- %s: %s\n", issue.Key, issue.URL)
+			fmt.Printf("\t- %s: %s\n", issue.Key, issue.URL)
 		}
 	}
 }
