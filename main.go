@@ -17,29 +17,88 @@ type Credentials struct {
 	Password string `json:"password"`
 }
 
-type IssueUser struct {
+type IssueUserDTO struct {
 	Name string `json:"displayName"`
 }
 
-type IssueStatus struct {
+type IssueStatusDTO struct {
 	Description string `json:"description"`
 }
 
-type IssueFields struct {
-	Summary  string      `json:"summary"`
-	Reporter IssueUser   `json:"reporter"`
-	Assignee IssueUser   `json:"assignee"`
-	Status   IssueStatus `json:"status"`
-	Evidence string      `json:"customfield_17840"`
+type IssueFieldsDTO struct {
+	Summary  string         `json:"summary"`
+	Reporter IssueUserDTO   `json:"reporter"`
+	Assignee IssueUserDTO   `json:"assignee"`
+	Status   IssueStatusDTO `json:"status"`
+	Evidence string         `json:"customfield_17840"`
+}
+
+type IssueDTO struct {
+	Key            string `json:"key"`
+	IssueFieldsDTO `json:"fields"`
+}
+
+type IssueDTOList struct {
+	Issues []IssueDTO `json:"issues"`
 }
 
 type Issue struct {
-	Key         string `json:"key"`
-	IssueFields `json:"fields"`
+	Key               string
+	Summary           string
+	URL               string
+	Reporter          string
+	Assignee          string
+	Status            string
+	EvidenceCompleted bool
 }
 
 type IssueList struct {
-	Issues []Issue `json:"issues"`
+	Issues []Issue
+}
+
+func (issue Issue) evidenceString() string {
+	if issue.EvidenceCompleted {
+		return color.GreenString("Completa")
+	}
+	return color.RedString("Incompleta")
+}
+
+func (issueList IssueList) printIssues() {
+	if len(issueList.Issues) == 0 {
+		fmt.Println("No issues found!")
+		return
+	}
+
+	for _, issue := range issueList.Issues {
+		var jiraKey = color.YellowString(issue.Key)
+		fmt.Printf("- [%s] %s\n", jiraKey, issue.Summary)
+		fmt.Printf("\t- %s\n", issue.URL)
+		fmt.Printf("\t- Informador: %s\n", issue.Reporter)
+		fmt.Printf("\t- Responsable: %s\n", issue.Assignee)
+		fmt.Printf("\t- Status: %s\n", issue.Status)
+		fmt.Printf("\t- Evidencia: %v\n", issue.evidenceString())
+	}
+}
+
+func (issueList IssueList) printIssuesWithoutEvidence() {
+	if len(issueList.Issues) == 0 {
+		return
+	}
+
+	var issuesWithoutEvidence []Issue
+
+	for _, issue := range issueList.Issues {
+		if !issue.EvidenceCompleted {
+			issuesWithoutEvidence = append(issuesWithoutEvidence, issue)
+		}
+	}
+
+	if len(issuesWithoutEvidence) > 0 {
+		fmt.Println("\nJiras sin evidencia: ")
+		for _, issue := range issuesWithoutEvidence {
+			fmt.Printf("- %s: %s\n", issue.Key, issue.URL)
+		}
+	}
 }
 
 func main() {
@@ -74,12 +133,14 @@ func main() {
 		log.Fatalf("Error reading response body: %v", err)
 	}
 
-	var issueList IssueList
-	if err := json.Unmarshal(body, &issueList); err != nil {
+	var issueDtoList IssueDTOList
+	if err := json.Unmarshal(body, &issueDtoList); err != nil {
 		log.Fatalf("Error parsing response body: %v", err)
 	}
 
-	printIssueList(issueList)
+	issueList := transformIssueDtoList(issueDtoList)
+	issueList.printIssues()
+	issueList.printIssuesWithoutEvidence()
 }
 
 func createHttpRequest(credentials Credentials, projectArg string, versionArg string) *http.Request {
@@ -101,30 +162,6 @@ func createHttpRequest(credentials Credentials, projectArg string, versionArg st
 	return request
 }
 
-func printIssueList(issueList IssueList) {
-	if len(issueList.Issues) == 0 {
-		fmt.Println("No issues found!")
-		return
-	}
-
-	for _, issue := range issueList.Issues {
-		var jiraKey = color.YellowString(issue.Key)
-		fmt.Printf("- [%s] %s\n", jiraKey, issue.Summary)
-		fmt.Printf("\t- %s\n", formatJiraURL(issue.Key))
-		fmt.Printf("\t- Informador: %s\n", issue.Reporter.Name)
-		fmt.Printf("\t- Responsable: %s\n", issue.Assignee.Name)
-		fmt.Printf("\t- Status: %s\n", issue.Status.Description)
-		fmt.Printf("\t- Evidencia: %v\n", issueEvidenceToSimpleString(issue.Evidence))
-	}
-}
-
-func issueEvidenceToSimpleString(evidence string) string {
-	if evidence != "" {
-		return color.GreenString("Completa")
-	}
-	return color.RedString("Incompleta")
-}
-
 func formatJiraURL(issueKey string) string {
 	return fmt.Sprintf("https://jira.despegar.com/browse/%s", issueKey)
 }
@@ -138,4 +175,25 @@ func obtainCLIArgs() (string, string) {
 	version := os.Args[2]
 
 	return project, version
+}
+
+func transformIssueDtoList(issueDtoList IssueDTOList) IssueList {
+	var issues []Issue
+	for _, dto := range issueDtoList.Issues {
+		issues = append(issues, issueFromDTO(dto))
+	}
+
+	return IssueList{Issues: issues}
+}
+
+func issueFromDTO(dto IssueDTO) Issue {
+	return Issue{
+		dto.Key,
+		dto.Summary,
+		formatJiraURL(dto.Key),
+		dto.Reporter.Name,
+		dto.Assignee.Name,
+		dto.Status.Description,
+		dto.Evidence != "",
+	}
 }
